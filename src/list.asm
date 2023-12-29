@@ -6,6 +6,7 @@
 [global list_destroy]
 
 [extern malloc]
+[extern realloc]
 [extern free]
 [extern printf]
 
@@ -16,12 +17,14 @@ list_init:
 
     mov rbx, rdi
 
-    mov rdi, 16 ; 8 * 2 (data and length/idx both are u64s)
+    mov rdi, 24 ; 8 * 3 (data and length/idx and capacity are u64s)
     call malloc wrt ..plt
     mov qword [rbp - 8], rax
 
     mov rax, 8
     mul rbx ; 1st arg aka count
+
+    mov rcx, rbx
 
     mov rdi, rax ; 8 * count
     call malloc wrt ..plt
@@ -31,6 +34,10 @@ list_init:
     mov rax, qword [rbp - 8]
     add rax, 8
     mov qword [rax], 0 ; length
+
+    mov rax, qword [rbp - 8]
+    add rax, 16
+    mov qword [rax], rcx ; capacity
 
     mov rax, qword [rbp - 8]
 
@@ -47,7 +54,29 @@ list_push:
 
     mov rcx, qword [rdi] ; ptr
     mov rbx, qword [rdi + 8] ; offset
+    mov rdx, qword [rdi + 16] ; capacity
 
+    cmp rbx, rdx
+    je .list_realloc
+    jmp .list_append
+
+.list_realloc:
+    mov rax, 2
+    mul rdx
+
+    mov qword [rdi + 16], rdx
+
+    mov rax, 8
+    mul rdx
+
+    mov rdi, rcx
+    mov rsi, rdx
+    call realloc wrt ..plt
+
+    mov qword [rdi], rax
+    mov rcx, rax
+
+.list_append:
     mov rax, 8
     mul rbx ; rax = rax * rbx
     add rcx, rax ; count * 8
@@ -68,6 +97,9 @@ list_pop:
     mov rcx, qword [rdi]
     mov rbx, qword [rdi + 8]
 
+    cmp rbx, 0
+    je .error
+
     sub rbx, 1
 
     mov qword [rdi + 8], rbx
@@ -80,7 +112,10 @@ list_pop:
     mov qword [rcx], 0
 
     mov rax, rdx
-
+    jmp .exit
+.error:
+    mov rax, 0
+.exit:
     mov rsp, rbp
     pop rbp
     ret
@@ -138,6 +173,9 @@ list_get:
     ; rdi = list ptr
     ; rsi = list idx
 
+    cmp rsi, qword [rdi + 16]
+    jg .error
+
     mov rcx, qword [rdi]
 
     mov rax, 8
@@ -145,7 +183,10 @@ list_get:
 
     add rcx, rax
     mov rax, qword [rcx]
-
+    jmp .exit
+.error:
+    mov rax, 0
+.exit:
     mov rsp, rbp
     pop rbp
     ret

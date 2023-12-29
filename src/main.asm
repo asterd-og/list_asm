@@ -15,7 +15,7 @@ main:
     mov rbp, rsp
     sub rsp, 8
 
-    mov rdi, 16 ; 16 entries
+    mov rdi, 1 ; 1 entry
     call list_init
     mov qword [rbp - 8], rax ; list ptr
 
